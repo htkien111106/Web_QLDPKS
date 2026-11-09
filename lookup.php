@@ -1,0 +1,13 @@
+<?php require 'includes/bootstrap.php';$title='Tra cứu đặt phòng';$b=null;$error='';
+if(post()) {check_csrf();$code=input('code');$email=input('email');
+ $b=query('SELECT b.*,r.name FROM bookings b JOIN room_types r ON r.id=b.room_type_id WHERE b.code=? AND b.email=?',[$code,$email])->fetch();
+ if(!$b)$error='Không tìm thấy đơn khớp mã đặt phòng và email.';
+ elseif(input('action')==='cancel') {
+  db()->beginTransaction();query('SELECT id FROM room_types WHERE id=? FOR UPDATE',[$b['room_type_id']]);
+  $current=query('SELECT * FROM bookings WHERE id=? FOR UPDATE',[$b['id']])->fetch();
+  if(in_array($current['status'],['pending','confirmed'],true) && $current['check_in']>date('Y-m-d')) {query("UPDATE bookings SET status='cancelled' WHERE id=?",[$b['id']]);$b['status']='cancelled';$success='Đã hủy đơn. Số phòng đã được hoàn lại.';}else $error='Đơn này không thể hủy trực tuyến. Vui lòng liên hệ khách sạn.';
+  db()->commit();
+ }
+} require 'includes/header.php'; ?>
+<section class="page-heading"><div class="eyebrow">MANAGE YOUR STAY</div><h1>Kỳ nghỉ trong <em>tầm tay.</em></h1><p>Nhập mã đặt phòng và email đã dùng khi đặt.</p></section><section class="section narrow compact"><?php if($error): ?><div class="notice error" role="alert"><?=e($error)?></div><?php endif; if(isset($success)): ?><div class="notice success"><?=e($success)?></div><?php endif; ?><form method="post" class="panel"><?=csrf()?><label>Mã đặt phòng<input name="code" value="<?=e(input('code'))?>" maxlength="32" required autocomplete="off"></label><label>Email<input type="email" name="email" value="<?=e(input('email'))?>" required></label><button class="button full">TRA CỨU ↗</button></form>
+<?php if($b): ?><div class="panel"><span class="badge"><?=e(status_name($b['status']))?></span><h2><?=e($b['name'])?></h2><dl><dt>Người đặt</dt><dd><?=e($b['guest_name'])?></dd><dt>Ngày nhận / trả</dt><dd><?=e($b['check_in'])?> → <?=e($b['check_out'])?></dd><dt>Số lượng</dt><dd><?=$b['quantity']?> phòng · <?=$b['guests']?> khách</dd><dt>Tổng tiền</dt><dd><?=money($b['total_price'])?></dd><dt>Thanh toán</dt><dd>Tại khách sạn</dd></dl><?php if(in_array($b['status'],['pending','confirmed'],true) && $b['check_in']>date('Y-m-d')): ?><form method="post" data-confirm="Bạn chắc chắn muốn hủy đơn đặt phòng này?"><?=csrf()?><input type="hidden" name="action" value="cancel"><input type="hidden" name="code" value="<?=e($b['code'])?>"><input type="hidden" name="email" value="<?=e($b['email'])?>"><button class="button outline">HỦY ĐẶT PHÒNG</button></form><?php endif; ?></div><?php endif; ?></section><?php require 'includes/footer.php'; ?>
